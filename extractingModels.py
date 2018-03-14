@@ -14,13 +14,13 @@ class LEHDExtraction(object):
     def __init__(self, url):
         self.url = url
 
-
     def ftp_url(self):
         html_extracted = requests.get(self.url).text
         soup = BeautifulSoup(html_extracted, "lxml")
         list_url = soup.find_all('a')
         list_absurl = [urllib.parse.urljoin(self.url, list_url[i]['href']) for i in range(8, len(list_url))]
         return list_absurl
+
 
     @property
     def od_url(self):
@@ -139,6 +139,24 @@ class BEAExtraction(object):
         self.year = year
         self.variables = variables
 
+    @classmethod
+    def from_config(cls, yaml_str=None, str_or_buffer=None):
+        if not yaml_str and not str_or_buffer:
+            raise ValueError('One of yaml_str or str_or_buffer is required.')
+
+        if yaml_str:
+            cfg = yaml.load(yaml_str)
+        elif isinstance(str_or_buffer, str):
+            with open(str_or_buffer) as f:
+                cfg = yaml.load(f)
+        else:
+            cfg = yaml.load(str_or_buffer)
+
+        return cls(cfg['urlBEA'],
+                   cfg['keyBEA'],
+                   cfg['year'],
+                   cfg['BEA_variables'])
+
     def __yearMax(self):
         url = "".join([self.url,
                       '?&UserID=',
@@ -191,11 +209,14 @@ class BEAExtraction(object):
             l = self.variables[v].split('-', 1)[1]
             d = self.extract_url(t, l)
             d['variable'] = v
-            d['GeoFips'] = d.GeoFips.astype('int32')
+            d['county_d'] = d.GeoFips.astype('int32')
+            d = d[d.DataValue != '(NA)']
+            d['value'] = d.DataValue.astype(float) * 10 ** (d.UNIT_MULT.astype('int32'))
             data_list.append(d)
 
-        return pd.concat(data_list)
-
+        data = pd.concat(data_list).set_index(['county_d', 'variable'])
+        data_unstacked = data[['value']].unstack()
+        return data_unstacked['value']
 
 if __name__ == '__main__':
     url = 'https://lehd.ces.census.gov/data/lodes/LODES7/'
@@ -207,10 +228,14 @@ if __name__ == '__main__':
                  'contributions': 'CA4-36'}
 
     yamlfile = 'Data\config_data.yaml'
-    ext = BEAExtraction(urlBEA, key, 2016, variables)
-    #d = ext.extract_all()
-    #print(d)
+    ext = BEAExtraction.from_config(str_or_buffer=yamlfile)
+    print(ext.extract_all())
 
-    tiger_url ='ftp://ftp2.census.gov/geo/tiger/TIGER2016/COUNTY/'
-    print(urllib.request.urlretrieve(tiger_url+ 'tl_2016_us_county.zip'))
-    zf = zipfile.ZipFile(BytesIO(urllib.request.urlretrieve(tiger_url+ 'tl_2016_us_county.zip').content))
+    #tiger_url ='ftp://ftp2.census.gov/geo/tiger/TIGER2016/COUNTY/'
+    #filename = urllib.request.urlretrieve(tiger_url + 'tl_2016_us_county.zip', 'county_shapefile.zip')
+
+
+
+    #zipped = zipfile.ZipFile(filename, 'r')
+
+    #zf = zipfile.ZipFile(BytesIO(urllib.request.urlretrieve(tiger_url+ 'tl_2016_us_county.zip').content))

@@ -1,9 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
 import urllib
-import io
-import gzip
-import os
 import yaml
 import pandas as pd
 import gc
@@ -60,13 +57,13 @@ class LEHDExtractionYear(LEHDExtraction):
 
     @property
     def year(self):
-        return self._year
+        return self.__year
     @year.setter
     def year(self, y):
         if y > self.yearMax:
             raise Exception('There is no LEHD data for year %d' %y)
         else:
-            self._year = y
+            self.__year = y
 
     @classmethod
     def from_config(cls, yaml_str=None, str_or_buffer=None):
@@ -134,10 +131,12 @@ class LEHDExtractionYear(LEHDExtraction):
 
 class BEAExtraction(object):
 
-    def __init__(self, url, key):
+    def __init__(self, url, key, year):
         self.url = url
         self.key = key
+        self.year = year
 
+    @property
     def yearMax(self):
         url = "".join([self.url,
                       '?&UserID=',
@@ -150,6 +149,17 @@ class BEAExtraction(object):
 
         return max(yearList)
 
+    @property
+    def year(self):
+        return self.__year
+
+    @year.setter
+    def year(self, y):
+        if y > self.yearMax:
+            raise Exception('There is no BEA data for year %d' % y)
+        else:
+            self.__year = y
+
 
 
 if __name__ == '__main__':
@@ -159,5 +169,5 @@ if __name__ == '__main__':
     key = '182D9A25-924D-499C-82AE-913EDCB55003'
 
     yamlfile = 'Data\config_data.yaml'
-    ext = LEHDExtractionYear.from_config(str_or_buffer=yamlfile)
-    print(ext.load_unzip())
+    ext = BEAExtraction(urlBEA, key, 2017)
+    print(ext.year)

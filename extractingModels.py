@@ -4,6 +4,9 @@ import urllib
 import yaml
 import pandas as pd
 import gc
+import spatialpandas as spd
+import zipfile
+from io import BytesIO
 
 
 class LEHDExtraction(object):
@@ -107,7 +110,6 @@ class LEHDExtractionYear(LEHDExtraction):
             state = u[0]
             if state not in ['pr', 'us', 'vi']:
                 url = ''.join([u[1], state, '_od_main_JT00_', str(self.year), '.csv.gz'])
-                print(url)
                 data = pd.read_csv(url, compression='gzip')
                 data_list.append(self.to_county(data))
                 gc.collect()
@@ -131,13 +133,13 @@ class LEHDExtractionYear(LEHDExtraction):
 
 class BEAExtraction(object):
 
-    def __init__(self, url, key, year):
+    def __init__(self, url, key, year, variables):
         self.url = url
         self.key = key
         self.year = year
+        self.variables = variables
 
-    @property
-    def yearMax(self):
+    def __yearMax(self):
         url = "".join([self.url,
                       '?&UserID=',
                       self.key,
@@ -155,11 +157,44 @@ class BEAExtraction(object):
 
     @year.setter
     def year(self, y):
-        if y > self.yearMax:
+        if y > self.__yearMax():
             raise Exception('There is no BEA data for year %d' % y)
         else:
             self.__year = y
 
+    def build_url(self, table, linecode):
+
+        url = "".join([self.url,
+                       '?&UserID=',
+                       self.key,
+                       '&method=GetData&datasetname=RegionalIncome&TableName=',
+                       table,
+                       '&LineCode=',
+                       linecode,
+                       '&GeoFIPS=COUNTY&Year=',
+                       str(self.year),
+                       '&ResultFormat=json&'])
+
+        return url
+
+    def extract_url(self, table, line):
+        url = self.build_url(table, line)
+        resp = requests.get(url).json()
+        return pd.DataFrame(resp['BEAAPI']['Results']['Data'])
+
+    def extract_all(self):
+
+        data_list = []
+
+        for v in self.variables:
+            t = self.variables[v].split('-', 1)[0]
+            l = self.variables[v].split('-', 1)[1]
+            d = self.extract_url(t, l)
+            d['variable'] = v
+            d['GeoFips'] = d.GeoFips.astype('int32')
+            data_list.append(d)
+
+        return pd.concat(data_list)
 
 
 if __name__ == '__main__':
@@ -167,7 +202,15 @@ if __name__ == '__main__':
 
     urlBEA = 'https://www.bea.gov/api/data/'
     key = '182D9A25-924D-499C-82AE-913EDCB55003'
+    variables = {'earnings_by_place_of_work': 'CA4-35',
+                 'employment': 'CA4-7020',
+                 'contributions': 'CA4-36'}
 
     yamlfile = 'Data\config_data.yaml'
-    ext = BEAExtraction(urlBEA, key, 2017)
-    print(ext.year)
+    ext = BEAExtraction(urlBEA, key, 2016, variables)
+    #d = ext.extract_all()
+    #print(d)
+
+    tiger_url ='ftp://ftp2.census.gov/geo/tiger/TIGER2016/COUNTY/'
+    print(urllib.request.urlretrieve(tiger_url+ 'tl_2016_us_county.zip'))
+    zf = zipfile.ZipFile(BytesIO(urllib.request.urlretrieve(tiger_url+ 'tl_2016_us_county.zip').content))

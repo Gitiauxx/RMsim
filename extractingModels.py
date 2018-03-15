@@ -110,9 +110,12 @@ class LEHDExtractionYear(LEHDExtraction):
             state = u[0]
             if state not in ['pr', 'us', 'vi']:
                 url = ''.join([u[1], state, '_od_main_JT00_', str(self.year), '.csv.gz'])
-                data = pd.read_csv(url, compression='gzip')
-                data_list.append(self.to_county(data))
-                gc.collect()
+                try:
+                    data = pd.read_csv(url, compression='gzip')
+                    data_list.append(self.to_county(data))
+                    gc.collect()
+                except:
+                    pass
 
         return pd.concat(data_list)
 

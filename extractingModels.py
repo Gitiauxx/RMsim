@@ -7,6 +7,7 @@ import gc
 import spatialpandas as spd
 import zipfile
 from io import BytesIO
+import os
 
 
 class LEHDExtraction(object):
@@ -56,7 +57,7 @@ class LEHDExtractionYear(LEHDExtraction):
     def __init__(self, url, OUTPUTFILE, year):
         self.url = url
         self.year = year
-        self.OUTPUTFILE = OUTPUTFILE
+        self.OUTFILE = OUTPUTFILE
 
     @property
     def year(self):
@@ -96,8 +97,10 @@ class LEHDExtractionYear(LEHDExtraction):
         else:
             cfg = yaml.load(str_or_buffer)
 
+        cfg['outfile'] = cfg['Output filename']
+
         mod = cls(cfg['urlLEHD'],
-                  cfg['LEHDOutput'],
+                  os.path.join(os.path.join(cfg['outfile']['data_directory'], cfg['outfile']['LEHDOutput'])),
                   cfg['year'])
 
         return mod
@@ -108,16 +111,21 @@ class LEHDExtractionYear(LEHDExtraction):
         data_list = []
         for u in list_url:
             state = u[0]
-            if state not in ['pr', 'us', 'vi']:
+            if state not in ['pr', 'us', 'vi', 'wy']:
                 url = ''.join([u[1], state, '_od_main_JT00_', str(self.year), '.csv.gz'])
-                try:
-                    data = pd.read_csv(url, compression='gzip')
-                    data_list.append(self.to_county(data))
-                    gc.collect()
-                except:
-                    pass
+                data = pd.read_csv(url, compression='gzip')
+                data_list.append(self.to_county(data))
+                gc.collect()
 
-        return pd.concat(data_list)
+        d = pd.concat(data_list)
+        d.to_csv(self.OUTFILE + str(self.year) + '.csv')
+        return d
+
+    def get_data(self):
+        try:
+            return pd.read_csv(self.OUTFILE + str(self.year) + '.csv')
+        except:
+            return self.load_unzip()
 
     def to_county(self, d):
 
@@ -136,11 +144,12 @@ class LEHDExtractionYear(LEHDExtraction):
 
 class BEAExtraction(object):
 
-    def __init__(self, url, key, year, variables):
+    def __init__(self, url, key, year, variables, OUTFILE):
         self.url = url
         self.key = key
         self.year = year
         self.variables = variables
+        self.OUTFILE = OUTFILE
 
     @classmethod
     def from_config(cls, yaml_str=None, str_or_buffer=None):
@@ -155,10 +164,13 @@ class BEAExtraction(object):
         else:
             cfg = yaml.load(str_or_buffer)
 
+        cfg['outfile'] = cfg['Output filename']
+
         return cls(cfg['urlBEA'],
                    cfg['keyBEA'],
                    cfg['year'],
-                   cfg['BEA_variables'])
+                   cfg['BEA_variables'],
+                   os.path.join(cfg['outfile']['data_directory'], cfg['outfile']['BEAOutput']))
 
     def __yearMax(self):
         url = "".join([self.url,
@@ -219,7 +231,16 @@ class BEAExtraction(object):
 
         data = pd.concat(data_list).set_index(['county_d', 'variable'])
         data_unstacked = data[['value']].unstack()
-        return data_unstacked['value']
+        d = data_unstacked['value']
+        d.columns.name = None
+        d.to_csv(self.OUTFILE + str(self.year) + '.csv')
+        return d
+
+    def get_data(self):
+        try:
+            return pd.read_csv(self.OUTFILE + str(self.year) + '.csv', index_col='county_d')
+        except:
+            return self.extract_all()
 
 if __name__ == '__main__':
     url = 'https://lehd.ces.census.gov/data/lodes/LODES7/'

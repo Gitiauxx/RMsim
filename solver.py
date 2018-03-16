@@ -123,10 +123,10 @@ class SolveEquilibrium(object):
             #raise Exception("Trade matrix attributes should have nonnegative entries")
         if (np.isnan(t)).any():
             raise Exception("Trade matrix attributes cannot have NAN entries")
-        if np.sum(t) == 1:
+        if (np.sum(t, axis=0) == 1).all():
             self._tradeMatrix = t
         else:
-            self._tradeMatrix = t / np.sum(t)
+            self._tradeMatrix = t / np.sum(t, axis=0)
 
     @property
     def countyMatrix(self):
@@ -222,7 +222,6 @@ class SolveEquilibrium(object):
 
     def check_calibration(self, target):
 
-
         self.POP = np.sum(target)
         loss = np.inf
 
@@ -289,6 +288,32 @@ class SolveEquilibrium(object):
         """
         return np.sqrt(np.mean((target - self.predicted)**2))
 
+
+class SolveProductivity(object):
+
+    def __init__(self, countyMatrix, distMatrix, commuteMatrix, prodParameters={'SIGMA':4, 'PSI':0.49}):
+        self.countyMatrix = countyMatrix
+        self.distMatrix = distMatrix
+        self.commuteMatrix = commuteMatrix
+
+    @property
+    def countyMatrix(self):
+        return self._countyMatrix
+
+    @countyMatrix.setter
+    def countyMatrix(self, c):
+        """
+        some housekeeping to make sure that the county matrix does not have negative values or NAN
+        :param c: county matrix
+        :return: c if pass barriers
+        """
+
+        # if (c < 0).any():
+        # raise Exception(" County matrix attributes should have nonnegative entries")
+        if (np.isnan(c)).any():
+            raise Exception("County matrix attributes cannot have NAN entries")
+
+        self._countyMatrix = c
 
 if __name__ == '__main__':
 

@@ -125,14 +125,14 @@ class Forecast(object):
         :return: m if sum equal one; return a normalized version otherwise
         """
 
-        # if (t < 0).any():
-        # raise Exception("Trade matrix attributes should have nonnegative entries")
+        #if (t < 0).any():
+            #raise Exception("Trade matrix attributes should have nonnegative entries")
         if (np.isnan(t)).any():
             raise Exception("Trade matrix attributes cannot have NAN entries")
-        if np.sum(t) == 1:
+        if (np.sum(t, axis=0) == 1).all():
             self._tradeMatrix = t
         else:
-            self._tradeMatrix = t / np.sum(t)
+            self._tradeMatrix = t / np.sum(t, axis=0)
 
     @property
     def _years(self):
@@ -189,7 +189,7 @@ class Forecast(object):
 
         # check that matrices are properly balanced
         print("Checking that matrices are balanced")
-        solver._check_balance()
+        #solver._check_balance()
 
         # forecast for all years in _years
         print( "Running forecast from %d to %d" %(_yearBASE, self.yearForecast))
@@ -211,7 +211,8 @@ if __name__ == '__main__':
 
     yamlfile = 'Data\config_control_forecasts.yaml'
     f = Forecast.from_config(str_or_buffer=yamlfile)
-
+    t = f.tradeMatrix
+    print(np.sum(t, axis=0))
     s = time.time()
     emp = f.employment
     print("time elapsed: {:.2f}s".format(time.time() - s))
